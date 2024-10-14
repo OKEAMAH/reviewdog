@@ -4,16 +4,18 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/go-github/v63/github"
+	"github.com/google/go-github/v64/github"
 	"github.com/reviewdog/reviewdog"
 	"github.com/reviewdog/reviewdog/cienv"
 	"github.com/reviewdog/reviewdog/filter"
 	"github.com/reviewdog/reviewdog/proto/rdf"
 	"github.com/reviewdog/reviewdog/service/github/githubutils"
+	"github.com/reviewdog/reviewdog/service/serviceutil"
 )
 
 // GitHub check runs API cannot handle too large requests.
@@ -47,6 +49,9 @@ type Check struct {
 
 	muResult sync.Mutex
 	result   *CheckResult
+
+	// wd is working directory relative to root of repository.
+	wd string
 }
 
 // CheckResult represents result of Check.
@@ -55,8 +60,28 @@ type CheckResult struct {
 	Conclusion string
 }
 
+// NewGitHubCheck returns a new Check service.
+func NewGitHubCheck(cli *github.Client, owner, repo string, pr int, sha, level, toolName string) (*Check, error) {
+	workDir, err := serviceutil.GitRelWorkdir()
+	if err != nil {
+		return nil, err
+	}
+	return &Check{
+		CLI:      cli,
+		Owner:    owner,
+		Repo:     repo,
+		PR:       pr,
+		SHA:      sha,
+		Level:    level,
+		ToolName: toolName,
+		wd:       workDir,
+	}, nil
+}
+
 // Post posts a reviewdog comment.
 func (ch *Check) Post(_ context.Context, c *reviewdog.Comment) error {
+	c.Result.Diagnostic.GetLocation().Path = filepath.ToSlash(filepath.Join(ch.wd,
+		c.Result.Diagnostic.GetLocation().GetPath()))
 	ch.muComments.Lock()
 	defer ch.muComments.Unlock()
 	ch.postComments = append(ch.postComments, c)
@@ -78,9 +103,15 @@ func (ch *Check) GetResult() *CheckResult {
 	return ch.result
 }
 
+func (ch *Check) SetTool(toolName string, level string) {
+	ch.ToolName = toolName
+	ch.Level = level
+}
+
 // Flush actually posts comments.
 func (ch *Check) Flush(ctx context.Context) error {
 	ch.muComments.Lock()
+	defer func() { ch.postComments = nil }()
 	defer ch.muComments.Unlock()
 	check, err := ch.createCheck(ctx)
 	if err != nil {
@@ -119,7 +150,7 @@ func (ch *Check) Flush(ctx context.Context) error {
 
 func (ch *Check) createCheck(ctx context.Context) (*github.CheckRun, error) {
 	opt := github.CreateCheckRunOptions{
-		Name:    ch.ToolName,
+		Name:    ch.checkName(),
 		HeadSHA: ch.SHA,
 		Status:  github.String("in_progress"),
 	}

@@ -20,7 +20,7 @@ import (
 	"golang.org/x/build/gerrit"
 	"golang.org/x/oauth2"
 
-	"github.com/google/go-github/v63/github"
+	"github.com/google/go-github/v64/github"
 	"github.com/mattn/go-shellwords"
 	"github.com/reviewdog/errorformat/fmts"
 	"github.com/xanzy/go-gitlab"
@@ -35,7 +35,6 @@ import (
 	gerritservice "github.com/reviewdog/reviewdog/service/gerrit"
 	giteaservice "github.com/reviewdog/reviewdog/service/gitea"
 	githubservice "github.com/reviewdog/reviewdog/service/github"
-	"github.com/reviewdog/reviewdog/service/github/githubutils"
 	gitlabservice "github.com/reviewdog/reviewdog/service/gitlab"
 )
 
@@ -165,7 +164,7 @@ const (
 			$ export GERRIT_REVISION_ID=ed318bf9a3c
 			$ export GERRIT_BRANCH=master
 			$ export GERRIT_ADDRESS=http://localhost:8080
-	
+
 	"bitbucket-code-report"
 		Create Bitbucket Code Report via Code Insights
 		(https://confluence.atlassian.com/display/BITBUCKET/Code+insights).
@@ -177,7 +176,7 @@ const (
 		- For Basic Auth you need to set following env variables:
 			  BITBUCKET_USER and BITBUCKET_PASSWORD
 		- For AccessToken Auth you need to set BITBUCKET_ACCESS_TOKEN
-		
+
 		To post results to Bitbucket Server specify BITBUCKET_SERVER_URL.
 
 	"gitea-pr-review"
@@ -317,27 +316,18 @@ func run(r io.Reader, w io.Writer, opt *option) error {
 			return runDoghouse(ctx, r, w, opt, isProject)
 		}
 		var err error
-		cs, ds, err = githubCheckService(ctx, opt)
+		checkService, ghDiffService, err := githubCheckService(ctx, opt)
 		if err != nil {
 			return err
 		}
+		ds = ghDiffService
+		cs = reviewdog.MultiCommentService(checkService, cs)
 	case "github-pr-annotations":
-		g, client, err := githubBuildInfoWithClient(ctx)
+		var err error
+		cs, ds, err = githubActionLogService(ctx, opt)
 		if err != nil {
 			return err
 		}
-		ds = &reviewdog.EmptyDiff{}
-		if g.PullRequest != 0 {
-			ds = &githubservice.PullRequestDiffService{
-				Cli:              client,
-				Owner:            g.Owner,
-				Repo:             g.Repo,
-				PR:               g.PullRequest,
-				SHA:              g.SHA,
-				FallBackToGitCLI: true,
-			}
-		}
-		cs = githubutils.NewGitHubActionLogWriter(opt.level)
 	case "github-pr-review":
 		gs, isPR, err := githubService(ctx, opt)
 		if err != nil {
@@ -683,15 +673,34 @@ func githubCheckService(ctx context.Context, opt *option) (reviewdog.CommentServ
 			FallBackToGitCLI: true,
 		}
 	}
-	return &githubservice.Check{
-		CLI:      client,
-		Owner:    g.Owner,
-		Repo:     g.Repo,
-		PR:       g.PullRequest,
-		SHA:      g.SHA,
-		ToolName: opt.name,
-		Level:    opt.level,
-	}, ds, nil
+	cs, err := githubservice.NewGitHubCheck(client, g.Owner, g.Repo, g.PullRequest, g.SHA, opt.level, toolName(opt))
+	if err != nil {
+		return nil, nil, err
+	}
+	return cs, ds, nil
+}
+
+func githubActionLogService(ctx context.Context, opt *option) (reviewdog.CommentService, reviewdog.DiffService, error) {
+	g, client, err := githubBuildInfoWithClient(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	var ds reviewdog.DiffService = &reviewdog.EmptyDiff{}
+	if g.PullRequest != 0 {
+		ds = &githubservice.PullRequestDiffService{
+			Cli:              client,
+			Owner:            g.Owner,
+			Repo:             g.Repo,
+			PR:               g.PullRequest,
+			SHA:              g.SHA,
+			FallBackToGitCLI: true,
+		}
+	}
+	cs, err := githubservice.NewGitHubActionLog(opt.level)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cs, ds, nil
 }
 
 func githubBuildInfoWithClient(ctx context.Context) (*cienv.BuildInfo, *github.Client, error) {

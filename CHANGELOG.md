@@ -9,12 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### :sparkles: Release Note <!-- optional -->
 
 ### :rocket: Enhancements
+- ...
+
+### :bug: Fixes
+- ...
+
+### :rotating_light: Breaking changes
+- ...
+
+## [v0.20.2] - 2024-09-16
+
+### :rocket: Enhancements
 - [#1845](https://github.com/reviewdog/reviewdog/pull/1845) Normalize file path in `related_locations` too.
 
 ### :bug: Fixes
 - [#1846](https://github.com/reviewdog/reviewdog/issues/1846) Unexpected error
   exit code when using `-reporter=github-[pr-]check` with
   `-fail-on-error=true`. See the below breaking changes section for more details.
+- [#1867](https://github.com/reviewdog/reviewdog/pull/1867) Tool name was incorrect for github-[pr-]check reporters and check API does not work correctly for project config based run
+- [#1867](https://github.com/reviewdog/reviewdog/pull/1867) Deletion of outdated comment didn't work properly with github-pr-review reporter since tool name isn't correctly configured for project config based run
+- [#1894](https://github.com/reviewdog/reviewdog/pull/1894) fix error when repository uses multiselect custom-properties [#1881](https://github.com/reviewdog/reviewdog/issues/1881)
+- [#1903](https://github.com/reviewdog/reviewdog/pull/1903) Adjust result paths for github-[pr-]check and github-pr-annotaions reporters relative to the git directory
 
 ### :rotating_light: Breaking changes
 - [#1858](https://github.com/reviewdog/reviewdog/pull/1858) Remove original_output from rdjson/rdjsonl reporters' output
@@ -31,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the flag while it's working.
 <!-- TODO: update the v0.19.0 release section -->
 
-## [v0.20.1] - 2024-07-10
+## [v0.20.1] - 2024-07-14
 
 ### :bug: Fixes
 - [#1835](https://github.com/reviewdog/reviewdog/pull/1835) Fix -filter-mode
@@ -293,4 +308,5 @@ See https://github.com/reviewdog/reviewdog/releases for older release note.
 [v0.19.0]: https://github.com/reviewdog/reviewdog/compare/v0.18.1...v0.19.0
 [v0.20.0]: https://github.com/reviewdog/reviewdog/compare/v0.19.0...v0.20.0
 [v0.20.1]: https://github.com/reviewdog/reviewdog/compare/v0.20.0...v0.20.1
+[v0.20.2]: https://github.com/reviewdog/reviewdog/compare/v0.20.1...v0.20.2
 [@haya14busa]: https://github.com/haya14busa
